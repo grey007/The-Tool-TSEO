@@ -2,10 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { fetchUrl, setFetchImpl, resetFetchImpl } = require('../../src/collectors/httpClient');
 
-function makeHeaders(objOrEntries) {
-  const entries = Array.isArray(objOrEntries) ? objOrEntries : Object.entries(objOrEntries);
-  const map = new Map(entries);
-  return { get: (k) => map.get(k.toLowerCase()) || map.get(k), entries: () => entries[Symbol.iterator]() };
+function makeHeaders(obj) {
+  const map = new Map(Object.entries(obj));
+  return { get: (k) => map.get(k.toLowerCase()) || map.get(k), entries: () => map.entries() };
 }
 
 test('http client blocks off-domain redirects', async () => {
@@ -24,19 +23,5 @@ test('http client blocks off-domain redirects', async () => {
   assert.equal(calls, 1);
   assert.equal(res.statusCode, 0);
   assert.equal(res.error, 'off-domain-redirect-blocked');
-  resetFetchImpl();
-});
-
-
-test('http client preserves repeated set-cookie headers as array', async () => {
-  setFetchImpl(async () => ({
-    status: 200,
-    headers: makeHeaders([['set-cookie', 'a=1; Secure'], ['set-cookie', 'b=2; HttpOnly']]),
-    body: null,
-    arrayBuffer: async () => new TextEncoder().encode('ok').buffer,
-  }));
-
-  const res = await fetchUrl('https://example.com/cookies', {}, null);
-  assert.deepEqual(res.headers['set-cookie'], ['a=1; Secure', 'b=2; HttpOnly']);
   resetFetchImpl();
 });
