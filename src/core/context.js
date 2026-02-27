@@ -5,10 +5,15 @@ const { fetchUrl } = require('../collectors/httpClient');
 const { isBlockedHostname, isBlockedIp } = require('../util/normalize');
 const dns = require('node:dns').promises;
 
-async function buildContext(targetHost, comparisonSnapshot, activeProfile) {
+async function buildContext(targetHost, comparisonSnapshot, activeProfile, dnsResolver = dns) {
   if (isBlockedHostname(targetHost)) return { blockedReason: 'blocked-hostname' };
-  let resolved = [];
-  try { resolved = [...await dns.resolve4(targetHost), ...await dns.resolve6(targetHost)]; } catch {}
+
+  let resolved4 = [];
+  let resolved6 = [];
+  try { resolved4 = await dnsResolver.resolve4(targetHost); } catch {}
+  try { resolved6 = await dnsResolver.resolve6(targetHost); } catch {}
+  const resolved = [...resolved4, ...resolved6];
+
   if (resolved.some(isBlockedIp)) return { blockedReason: 'blocked-ip-range', resolvedHosts: resolved };
 
   const limits = {

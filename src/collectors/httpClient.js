@@ -8,6 +8,18 @@ function resetFetchImpl() {
   fetchImpl = globalThis.fetch;
 }
 
+function pushHeader(out, key, value) {
+  if (out[key] === undefined) {
+    out[key] = value;
+    return;
+  }
+  if (Array.isArray(out[key])) {
+    out[key].push(value);
+    return;
+  }
+  out[key] = [out[key], value];
+}
+
 function toHeadersObject(headers) {
   const out = {};
   if (!headers) return out;
@@ -15,7 +27,9 @@ function toHeadersObject(headers) {
   for (const [kRaw, vRaw] of entries.slice(0, 128)) {
     const k = String(kRaw).toLowerCase().slice(0, 128);
     const v = String(vRaw).slice(0, 2048);
-    out[k] = v;
+    if (k === 'set-cookie') pushHeader(out, k, v);
+    else if (out[k] === undefined) out[k] = v;
+    else pushHeader(out, k, v);
   }
   return out;
 }
