@@ -159,7 +159,7 @@ Both objects contain the same values:
     "stable": 30,
     "unknown": 4,
     "mostImmediateRisk": "...",
-    "secondaryRisks": ["...", "..."]
+    "secondaryRisks": [{"id": "c05_tls_chain_validity", "status": "critical"}, {"id": "c17_dmarc_policy_drift", "status": "warning"}]
   },
   "summary": {
     "stabilityIndex": 84,
@@ -168,10 +168,22 @@ Both objects contain the same values:
     "stable": 30,
     "unknown": 4,
     "mostImmediateRisk": "...",
-    "secondaryRisks": ["...", "..."]
+    "secondaryRisks": [{"id": "c05_tls_chain_validity", "status": "critical"}, {"id": "c17_dmarc_policy_drift", "status": "warning"}]
   }
 }
 ```
+
+
+## Upgrade Notes
+- Verification gates:
+  - `npm run verify:e2e`
+  - `ops/windows/verify.ps1` (Windows PowerShell 5.1)
+- JSON output guarantees:
+  - both `rollup` and `summary` are present; `summary` mirrors `rollup` exactly
+  - `target.resolvedHosts` always uses arrays for `A/AAAA/CNAME/NS/MX/TXT`
+  - `secondaryRisks` is a deterministic ordered array of `{ id, status }`
+- Canonical handling: `www` and apex of the same registrable domain are treated as same-site (not critical).
+- DNS TXT lookup failure handling: checks return `unknown` with `lookupError` and reason code `dns_txt_lookup_failed`.
 
 ## Exit codes
 - `0` stable
