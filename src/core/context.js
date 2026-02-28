@@ -5,6 +5,25 @@ const { fetchUrl } = require('../collectors/httpClient');
 const { isBlockedHostname, isBlockedIp } = require('../util/normalize');
 const dns = require('node:dns').promises;
 
+function uniqSorted(values) {
+  return [...new Set((values || []).filter((v) => typeof v === 'string' && v.trim()))].sort();
+}
+
+function resolvedHostsShape() {
+  return { A: [], AAAA: [], CNAME: [], NS: [], MX: [], TXT: [] };
+}
+
+function buildResolvedHosts(resolver, dnsData) {
+  const out = resolvedHostsShape();
+  out.A = uniqSorted([...(resolver?.A || []), ...(dnsData?.A || [])]);
+  out.AAAA = uniqSorted([...(resolver?.AAAA || []), ...(dnsData?.AAAA || [])]);
+  out.CNAME = uniqSorted([...(resolver?.CNAME || []), ...(dnsData?.CNAME || [])]);
+  out.NS = uniqSorted(dnsData?.NS || []);
+  out.MX = uniqSorted((dnsData?.MX || []).map((m) => (typeof m === 'string' ? m : m?.exchange || '')));
+  out.TXT = uniqSorted(dnsData?.TXT || []);
+  return out;
+}
+
 async function buildContext(targetHost, comparisonSnapshot, activeProfile, dnsResolver = dns, deps = {}) {
   if (isBlockedHostname(targetHost)) return { blockedReason: 'blocked-hostname' };
 
@@ -13,17 +32,30 @@ async function buildContext(targetHost, comparisonSnapshot, activeProfile, dnsRe
   const crawlSiteImpl = deps.crawlSite || crawlSite;
   const fetchUrlImpl = deps.fetchUrl || fetchUrl;
 
-  const errors = [];
+  const dnsErrors = [];
   let resolved4 = [];
   let resolved6 = [];
   let resolvedCname = [];
-  try { resolved4 = await dnsResolver.resolve4(targetHost); } catch (e) { errors.push({ type: 'A', message: e?.message || 'lookup-failed' }); }
-  try { resolved6 = await dnsResolver.resolve6(targetHost); } catch (e) { errors.push({ type: 'AAAA', message: e?.message || 'lookup-failed' }); }
-  try { resolvedCname = await dnsResolver.resolveCname(targetHost); } catch (e) { errors.push({ type: 'CNAME', message: e?.message || 'lookup-failed' }); }
+
+  try { resolved4 = await dnsResolver.resolve4(targetHost); }
+  catch (e) { dnsErrors.push({ qname: targetHost, type: 'A', message: e?.message || 'lookup-failed' }); }
+
+  try { resolved6 = await dnsResolver.resolve6(targetHost); }
+  catch (e) { dnsErrors.push({ qname: targetHost, type: 'AAAA', message: e?.message || 'lookup-failed' }); }
+
+  try { resolvedCname = await dnsResolver.resolveCname(targetHost); }
+  catch (e) { dnsErrors.push({ qname: targetHost, type: 'CNAME', message: e?.message || 'lookup-failed' }); }
+
   const resolved = [...resolved4, ...resolved6, ...resolvedCname];
+  const resolverData = { A: resolved4, AAAA: resolved6, CNAME: resolvedCname };
 
   if (resolved.some(isBlockedIp)) {
-    return { blockedReason: 'blocked-ip-range', resolvedHosts: [...new Set(resolved)].sort(), errors };
+    return {
+      blockedReason: 'blocked-ip-range',
+      resolvedHosts: buildResolvedHosts(resolverData, null),
+      dnsErrors,
+      errors: dnsErrors,
+    };
   }
 
   const limits = {
@@ -47,12 +79,7 @@ async function buildContext(targetHost, comparisonSnapshot, activeProfile, dnsRe
     crawlSiteImpl(targetHost, limits, caches).catch(() => []),
   ]);
 
-  const collectorResolved = [
-    ...(dnsData?.A || []),
-    ...(dnsData?.AAAA || []),
-    ...(dnsData?.CNAME || []),
-  ];
-  const resolvedHosts = [...new Set([...resolved, ...collectorResolved])].sort();
+  const resolvedHosts = buildResolvedHosts(resolverData, dnsData);
 
   const crawlSummary = {
     pagesCrawled: pages.length,
@@ -63,7 +90,8 @@ async function buildContext(targetHost, comparisonSnapshot, activeProfile, dnsRe
   return {
     targetHost,
     resolvedHosts,
-    errors,
+    dnsErrors,
+    errors: dnsErrors,
     dns: dnsData,
     tls: tlsData,
     homepage,

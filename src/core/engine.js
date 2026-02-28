@@ -48,8 +48,9 @@ async function runEngine({ targetInput, dataDir, profile, overrides = {} }) {
       target: {
         input: targetInput,
         canonical,
-        resolvedHosts: ctx.resolvedHosts || [],
-        errors: ctx.errors || [],
+        resolvedHosts: ctx.resolvedHosts || { A: [], AAAA: [], CNAME: [], NS: [], MX: [], TXT: [] },
+        dnsErrors: ctx.dnsErrors || ctx.errors || [],
+        errors: ctx.errors || ctx.dnsErrors || [],
         blockedReason: ctx.blockedReason,
         baselineUsed,
         baselineRef: baselineUsed ? baseline.ref : undefined,
@@ -98,8 +99,9 @@ async function runEngine({ targetInput, dataDir, profile, overrides = {} }) {
     target: {
       input: targetInput,
       canonical,
-      resolvedHosts: ctx.resolvedHosts || [],
-      errors: ctx.errors || [],
+      resolvedHosts: ctx.resolvedHosts || { A: [], AAAA: [], CNAME: [], NS: [], MX: [], TXT: [] },
+      dnsErrors: ctx.dnsErrors || ctx.errors || [],
+      errors: ctx.errors || ctx.dnsErrors || [],
       baselineUsed,
       baselineRef: baselineUsed ? baseline.ref : undefined,
       engineTruncated,

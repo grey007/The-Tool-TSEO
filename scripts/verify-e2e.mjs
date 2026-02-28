@@ -11,6 +11,7 @@ function mockedContext({ host, canonicalHref, resolvedHosts, dns = {} }) {
   return {
     targetHost: host,
     resolvedHosts,
+    dnsErrors: [],
     errors: [],
     dns,
     tls: null,
@@ -53,7 +54,14 @@ function assertSnapshotBasics(snapshot, expectedHost) {
     assert.equal(typeof item.id, 'string');
     assert.equal(typeof item.status, 'string');
   }
-  assert.ok(Array.isArray(parsed.target?.resolvedHosts), 'target.resolvedHosts must be an array');
+
+  assert.ok(parsed.target?.resolvedHosts && typeof parsed.target.resolvedHosts === 'object', 'target.resolvedHosts must be an object');
+  const rh = parsed.target.resolvedHosts;
+  for (const key of ['A', 'AAAA', 'CNAME', 'NS', 'MX', 'TXT']) {
+    assert.ok(Array.isArray(rh[key]), `target.resolvedHosts.${key} must be an array`);
+  }
+  const nonEmptyCount = ['A', 'AAAA', 'CNAME', 'NS', 'MX', 'TXT'].reduce((n, k) => n + (rh[k].length > 0 ? 1 : 0), 0);
+  assert.ok(nonEmptyCount > 0, 'target.resolvedHosts must contain at least one resolved list');
   assert.equal(parsed.target.canonical, expectedHost);
 }
 
@@ -61,14 +69,14 @@ async function main() {
   const apple = await runMockScan('apple.com', mockedContext({
     host: 'apple.com',
     canonicalHref: 'https://www.apple.com/',
-    resolvedHosts: ['17.253.144.10', '2a02:26f0::1234'],
+    resolvedHosts: { A: ['17.253.144.10'], AAAA: ['2a02:26f0::1234'], CNAME: [], NS: ['ns.apple.com'], MX: [], TXT: [] },
     dns: { DMARC_TXT: ['v=DMARC1; p=reject'] },
   }));
 
   const semrush = await runMockScan('semrush.com', mockedContext({
     host: 'semrush.com',
     canonicalHref: 'https://www.semrush.com/',
-    resolvedHosts: ['104.18.36.228', '2606:4700::6812:24e4'],
+    resolvedHosts: { A: ['104.18.36.228'], AAAA: ['2606:4700::6812:24e4'], CNAME: [], NS: ['ns1.semrush.com'], MX: [], TXT: [] },
     dns: { DMARC_TXT: ['v=DMARC1; p=quarantine'] },
   }));
 
@@ -81,7 +89,7 @@ async function main() {
   const dmarcFailure = await runMockScan('apple.com', mockedContext({
     host: 'apple.com',
     canonicalHref: 'https://www.apple.com/',
-    resolvedHosts: ['17.253.144.10'],
+    resolvedHosts: { A: ['17.253.144.10'], AAAA: [], CNAME: [], NS: [], MX: [], TXT: [] },
     dns: {
       DMARC_TXT: [],
       lookupErrors: { dmarcTxt: 'timeout' },
