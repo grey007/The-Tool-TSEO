@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-  [string[]]$Targets = @('example.com', 'apple.com')
+  [string[]]$Targets = @('actionroofingltd.com', 'roofingbusinesspartner.com', 'truegritkc.com', 'apple.com', 'semrush.com')
 )
 
 $ErrorActionPreference = 'Stop'
